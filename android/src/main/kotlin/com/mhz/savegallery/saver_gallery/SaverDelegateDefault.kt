@@ -1,15 +1,11 @@
 package com.mhz.savegallery.saver_gallery
 
-import android.annotation.SuppressLint
-import android.content.ContentUris
-import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Environment
-import android.provider.MediaStore
 import io.flutter.plugin.common.MethodChannel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -19,11 +15,11 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.IOException
 import com.mhz.savegallery.saver_gallery.utils.MediaStoreUtils.getMIMEType
-import android.os.Build
 
 /**
- * Implementation of [SaverDelegate] for default saving behavior.
- * Handles saving images and files to the device's gallery.
+ * Legacy [SaverDelegate] for API levels below 29 (Android 9 and below).
+ * Writes directly to public external storage and notifies the media scanner.
+ * Android 10+ uses [SaverDelegateAndroidT] instead.
  *
  * @param context The application context.
  */
@@ -209,89 +205,28 @@ class SaverDelegateDefault(context: Context) : SaverDelegate(context) {
     }
 
     /**
-     * Generates a URI for a new file in the given relative path.
+     * Generates a file URI for a new file in the given relative path.
      *
      * @param fileName The name of the file.
      * @param relativePath The relative path in the gallery.
      * @return The URI where the file will be saved.
-     * @throws IOException If the URI cannot be created.
+     * @throws IOException If the target directory cannot be created.
      */
-    @SuppressLint("InlinedApi")
     private fun generateFileUri(fileName: String, relativePath: String): Uri {
         val mimeType = getMIMEType(fileName.substringAfterLast('.', ""))
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            // Determine the type of content URI based on MIME type.
-            val contentUri = when {
-                mimeType?.startsWith("video") == true -> MediaStore.Video.Media.EXTERNAL_CONTENT_URI
-                mimeType?.startsWith("audio") == true -> MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-                else -> MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-            }
-
-            // Set a default relative path if it's null or empty.
-            val defaultRelativePath = when {
-                mimeType?.startsWith("video") == true -> Environment.DIRECTORY_MOVIES
-                mimeType?.startsWith("audio") == true -> Environment.DIRECTORY_MUSIC
-                else -> Environment.DIRECTORY_PICTURES
-            }
-
-            val resolvedRelativePath = if (relativePath.isEmpty()) defaultRelativePath else relativePath
-
-            val contentValues = ContentValues().apply {
-                put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-                put(MediaStore.MediaColumns.RELATIVE_PATH, resolvedRelativePath)
-                if (!mimeType.isNullOrEmpty()) put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
-            }
-
-            return context.contentResolver.insert(contentUri, contentValues)
-                ?: throw IOException("Failed to create Media URI for $fileName")
-        } else {
-            val targetDirectory = resolveLegacyTargetDirectory(relativePath, mimeType)
-            return Uri.fromFile(File(targetDirectory, fileName))
-        }
+        val targetDirectory = resolveLegacyTargetDirectory(relativePath, mimeType)
+        return Uri.fromFile(File(targetDirectory, fileName))
     }
 
-    @SuppressLint("InlinedApi")
     private fun findExistingUri(relativePath: String, fileName: String): Uri? {
         val mimeType = getMIMEType(fileName.substringAfterLast('.', ""))
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val contentUri = when {
-                mimeType?.startsWith("video") == true -> MediaStore.Video.Media.EXTERNAL_CONTENT_URI
-                mimeType?.startsWith("audio") == true -> MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-                else -> MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-            }
-            val projection = arrayOf(MediaStore.MediaColumns._ID)
-            val selection = "${MediaStore.Images.Media.RELATIVE_PATH} LIKE ? AND ${MediaStore.Images.Media.DISPLAY_NAME} = ?"
-            val selectionArgs = arrayOf("%$relativePath%", fileName)
-            val sortOrder = "${MediaStore.Images.Media.DISPLAY_NAME} ASC"
-
-            return try {
-                context.contentResolver.query(
-                    contentUri,
-                    projection,
-                    selection,
-                    selectionArgs,
-                    sortOrder
-                )?.use { cursor ->
-                    if (cursor.moveToFirst()) {
-                        val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID))
-                        ContentUris.withAppendedId(contentUri, id)
-                    } else {
-                        null
-                    }
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                null
-            }
-        } else {
-            return try {
-                val targetDirectory = resolveLegacyTargetDirectory(relativePath, mimeType)
-                val existingFile = File(targetDirectory, fileName)
-                if (existingFile.exists()) Uri.fromFile(existingFile) else null
-            } catch (e: Exception) {
-                e.printStackTrace()
-                null
-            }
+        return try {
+            val targetDirectory = resolveLegacyTargetDirectory(relativePath, mimeType)
+            val existingFile = File(targetDirectory, fileName)
+            if (existingFile.exists()) Uri.fromFile(existingFile) else null
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
         }
     }
 

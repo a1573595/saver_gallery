@@ -1,5 +1,9 @@
 ## Unreleased
 
+* Clean up unreachable Android 10+ MediaStore code path in `SaverDelegateDefault` (#40).
+
+## 5.1.0
+
 * **Breaking change**: Replace `androidRelativePath` with `albumPath`, enabling cross-platform album hierarchy support on Android and iOS (#23).
 * Add iOS PhotoKit folder hierarchy support for nested `albumPath` values.
 * Return saved URI(s) after saving (#23).
