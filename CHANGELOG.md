@@ -1,3 +1,7 @@
+## Unreleased
+
+* Migrate Android plugin to AGP 9 built-in Kotlin (#41).
+
 ## 5.1.0
 
 * **Breaking change**: Replace `androidRelativePath` with `albumPath`, enabling cross-platform album hierarchy support on Android and iOS (#23).
